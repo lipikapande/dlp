@@ -1,0 +1,13 @@
+opencv-python==4.9.0.80
+numpy
+scipy
+scikit-image
+ultralytics
+torch
+torchvision
+Pillow
+fastapi
+uvicorn
+httpx
+pyttsx3
+python-multipart
