@@ -3,14 +3,14 @@ from dataclasses import dataclass
 @dataclass
 class Config:
     # Quality gate thresholds
-    BLUR_THRESHOLD: float = 80.0       # Laplacian variance — below = too blurry
+    BLUR_THRESHOLD: float = 30.0       # Laplacian variance — below = too blurry
     BRIGHTNESS_MIN: float = 30.0       # Mean pixel value (0-255)
     BRIGHTNESS_MAX: float = 225.0
-    SNR_THRESHOLD: float = 10.0        # dB
+    SNR_THRESHOLD: float = 0.0         # dB
 
     # DIP stages to enable (toggle for power profiling)
     ENABLE_FREQUENCY_FILTER: bool = False  # Expensive on Pi
-    ENABLE_WIENER: bool = True
+    ENABLE_WIENER: bool = False
     ENABLE_SEGMENTATION: bool = False  # Only needed for feature export
 
     # Compression
@@ -23,6 +23,6 @@ class Config:
 
     # Camera
     CAMERA_RESOLUTION: tuple = (1280, 720)
-    CAMERA_WARMUP_FRAMES: int = 3
+    CAMERA_WARMUP_FRAMES: int = 20
 
 CONFIG = Config()

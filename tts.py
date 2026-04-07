@@ -1,18 +1,6 @@
-import pyttsx3
-
-_engine = None
-
-def get_engine():
-    global _engine
-    if _engine is None:
-        _engine = pyttsx3.init()
-        _engine.setProperty("rate", 160)   # Words per minute
-        _engine.setProperty("volume", 0.9)
-    return _engine
+import subprocess
 
 def speak(text: str):
-    """Speak text out loud using system TTS. Blocking call."""
+    """Speak text out loud using macOS native 'say' command. Blocking call."""
     print(f"[tts] Speaking: {text}")
-    engine = get_engine()
-    engine.say(text)
-    engine.runAndWait()
+    subprocess.run(["say", "-r", "160", text])

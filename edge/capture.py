@@ -1,5 +1,6 @@
 import cv2
 import numpy as np
+import time
 from config import CONFIG
 
 def capture_snapshot() -> np.ndarray | None:
@@ -7,6 +8,9 @@ def capture_snapshot() -> np.ndarray | None:
     cap = cv2.VideoCapture(0)
     cap.set(cv2.CAP_PROP_FRAME_WIDTH, CONFIG.CAMERA_RESOLUTION[0])
     cap.set(cv2.CAP_PROP_FRAME_HEIGHT, CONFIG.CAMERA_RESOLUTION[1])
+
+    # Give macOS camera hardware time to open before reading
+    time.sleep(0.5)
 
     # Burn warmup frames so auto-exposure settles
     for _ in range(CONFIG.CAMERA_WARMUP_FRAMES):

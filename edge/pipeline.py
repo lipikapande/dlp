@@ -10,20 +10,23 @@ def run_pipeline(image: np.ndarray) -> np.ndarray:
     """
     Run all enabled DIP stages in order.
     Each stage is a pure function: np.ndarray -> np.ndarray.
-    Easy to disable or reorder.
+    Skips enhancement stages if image is already well-exposed.
     """
-    # Stage 1: Contrast enhancement
-    image = apply_clahe(image, clip_limit=2.0)
-    image = auto_gamma(image)
+    mean_brightness = image.mean()
 
-    # Stage 2: Spatial filtering
+    # Only apply contrast/gamma if image is dark or low contrast
+    if mean_brightness < 80:
+        image = apply_clahe(image, clip_limit=2.0)
+        image = auto_gamma(image)
+
+    # Stage 2: Spatial filtering (light denoise — always safe)
     image = apply_gaussian(image, kernel_size=3)
 
     # Stage 3: Frequency domain (disabled by default — expensive on Pi)
     if CONFIG.ENABLE_FREQUENCY_FILTER:
         image = apply_butterworth(image, cutoff=0.3, order=2)
 
-    # Stage 4: Restoration
+    # Stage 4: Restoration (disabled — causes artifacts on clean laptop images)
     if CONFIG.ENABLE_WIENER:
         image = apply_wiener_filter(image, kernel_size=5)
 

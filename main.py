@@ -1,10 +1,15 @@
 import time
+import os
+import cv2
 from edge.capture import capture_snapshot
 from edge.pipeline import run_pipeline
 from edge.quality import assess_quality
 from edge.compression import compress_to_jpeg_bytes
 from edge.transport import upload_sync
 from tts import speak
+
+DEBUG_DIR = os.path.join(os.path.dirname(__file__), "..", "debug_captures")
+os.makedirs(DEBUG_DIR, exist_ok=True)
 
 def on_trigger():
     print("\n[main] --- Trigger received ---")
@@ -17,8 +22,18 @@ def on_trigger():
 
     print(f"[main] Captured: {image.shape}")
 
+    # Save raw frame for inspection
+    ts = time.strftime("%Y%m%d_%H%M%S")
+    raw_path = os.path.join(DEBUG_DIR, f"{ts}_raw.jpg")
+    cv2.imwrite(raw_path, image)
+
     # 2. DIP pipeline
     processed = run_pipeline(image)
+
+    # Save processed frame for inspection
+    proc_path = os.path.join(DEBUG_DIR, f"{ts}_processed.jpg")
+    cv2.imwrite(proc_path, processed)
+    print(f"[main] Saved captures → {raw_path}")
 
     # 3. Quality gate
     report = assess_quality(processed)
