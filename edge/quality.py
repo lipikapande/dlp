@@ -1,3 +1,4 @@
+# quality.py - image quality assessment (blur, brightness, noise)
 import cv2
 import numpy as np
 from dataclasses import dataclass

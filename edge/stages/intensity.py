@@ -1,7 +1,8 @@
+# intensity.py - intensity adjustments (CLAHE, gamma correction)
 import cv2
 import numpy as np
 
-def apply_clahe(image: np.ndarray,
+def apply_clahe(image: np.ndarray,       
                 clip_limit: float = 2.0,
                 tile_size: tuple = (8, 8)) -> np.ndarray:
     """

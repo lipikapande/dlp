@@ -1,3 +1,4 @@
+# frequency.py - frequency domain filters (e.g. Butterworth low-pass)
 import cv2
 import numpy as np
 

@@ -3,31 +3,54 @@ from config import CONFIG
 from edge.stages.intensity import apply_clahe, auto_gamma
 from edge.stages.spatial import apply_gaussian
 from edge.stages.restoration import apply_wiener_filter
-from edge.stages.frequency import apply_butterworth   # implement similarly
-from edge.stages.color import apply_histogram_eq      # implement similarly
+from edge.stages.frequency import apply_butterworth
+import cv2
 
-def run_pipeline(image: np.ndarray) -> np.ndarray:
-    """
-    Run all enabled DIP stages in order.
-    Each stage is a pure function: np.ndarray -> np.ndarray.
-    Skips enhancement stages if image is already well-exposed.
-    """
-    mean_brightness = image.mean()
+stage_images: dict[str, np.ndarray] = {}
 
-    # Only apply contrast/gamma if image is dark or low contrast
-    if mean_brightness < 80:
-        image = apply_clahe(image, clip_limit=2.0)
-        image = auto_gamma(image)
+def run_pipeline(image: np.ndarray) -> tuple[np.ndarray, dict]:
+    stages = {}
 
-    # Stage 2: Spatial filtering (light denoise — always safe)
-    image = apply_gaussian(image, kernel_size=3)
+    stages["01_raw"] = image.copy()
 
-    # Stage 3: Frequency domain (disabled by default — expensive on Pi)
+    # DENOISE
+    image = apply_gaussian(image, kernel_size=5)
+    stages["02_denoise"] = image.copy()
+
+    # CLAHE
+    image = apply_clahe(image, clip_limit=2.0)
+    stages["03_clahe"] = image.copy()
+
+    # GAMMA
+    image = auto_gamma(image)
+    stages["04_gamma"] = image.copy()
+
+    # BUTTERWORTH
     if CONFIG.ENABLE_FREQUENCY_FILTER:
-        image = apply_butterworth(image, cutoff=0.3, order=2)
+        image = apply_butterworth(image)
+        stages["05_butterworth"] = image.copy()
 
-    # Stage 4: Restoration (disabled — causes artifacts on clean laptop images)
+    # EDGES
+    edges = cv2.Canny(image, 100, 200)
+    stages["06_edges"] = edges.copy()
+
+    # THRESHOLD
+    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    _, thresh = cv2.threshold(gray, 127, 255, cv2.THRESH_BINARY)
+    stages["07_threshold"] = thresh.copy()
+
+    # WIENER (optional)
     if CONFIG.ENABLE_WIENER:
-        image = apply_wiener_filter(image, kernel_size=5)
+        restored = apply_wiener_filter(image, kernel_size=5)
+        if restored.mean() > 5.0:
+            image = restored
+        stages["08_wiener"] = image.copy()
 
-    return image
+    # SHARPEN
+    kernel = np.array([[0,-1,0],[-1,5,-1],[0,-1,0]])
+    image = cv2.filter2D(image, -1, kernel)
+    stages["09_sharpen"] = image.copy()
+
+    stages["10_final"] = image.copy()
+
+    return image, stages

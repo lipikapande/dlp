@@ -1,3 +1,4 @@
+# segmentation.py - edge detection and contour extraction
 import cv2
 import numpy as np
 

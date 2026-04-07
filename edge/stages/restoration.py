@@ -1,3 +1,4 @@
+# restoration.py - image restoration filters (deblurring, denoising)
 import cv2
 import numpy as np
 from scipy.signal import wiener

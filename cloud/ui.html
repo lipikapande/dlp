@@ -1,0 +1,552 @@
+<!-- ui.html -->
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Vision Assistant — DIP Debug View</title>
+    <link
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@300;400;500&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --bg: #0d0f0e;
+        --surface: #141614;
+        --border: #1f221f;
+        --border-bright: #2a2f2a;
+        --accent: #39ff7a;
+        --accent-dim: #1a7a3a;
+        --text: #c8d4c8;
+        --text-dim: #5a6b5a;
+        --text-bright: #eef4ee;
+        --warn: #f0a030;
+        --danger: #e05050;
+        --mono: "IBM Plex Mono", monospace;
+        --sans: "IBM Plex Sans", sans-serif;
+      }
+
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        background: var(--bg);
+        color: var(--text);
+        font-family: var(--sans);
+        font-weight: 300;
+        min-height: 100vh;
+      }
+
+      /* Header */
+      header {
+        border-bottom: 1px solid var(--border);
+        padding: 18px 32px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        position: sticky;
+        top: 0;
+        background: var(--bg);
+        z-index: 100;
+      }
+
+      .logo {
+        font-family: var(--mono);
+        font-size: 13px;
+        letter-spacing: 0.12em;
+        color: var(--accent);
+        text-transform: uppercase;
+      }
+
+      .logo span {
+        color: var(--text-dim);
+      }
+
+      #status-dot {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: var(--text-dim);
+        display: inline-block;
+        margin-right: 8px;
+        transition: background 0.3s;
+      }
+      #status-dot.live {
+        background: var(--accent);
+        box-shadow: 0 0 8px var(--accent);
+      }
+      #status-dot.processing {
+        background: var(--warn);
+        animation: pulse 0.6s ease-in-out infinite alternate;
+      }
+
+      @keyframes pulse {
+        to {
+          opacity: 0.3;
+        }
+      }
+
+      #status-text {
+        font-family: var(--mono);
+        font-size: 11px;
+        color: var(--text-dim);
+        letter-spacing: 0.08em;
+      }
+
+      /* Description banner */
+      #description-bar {
+        padding: 20px 32px;
+        border-bottom: 1px solid var(--border);
+        min-height: 64px;
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        transition: opacity 0.4s;
+      }
+
+      #description-bar.empty {
+        opacity: 0.3;
+      }
+
+      .scene-badge {
+        font-family: var(--mono);
+        font-size: 10px;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        padding: 4px 10px;
+        border: 1px solid var(--accent-dim);
+        color: var(--accent);
+        border-radius: 2px;
+        white-space: nowrap;
+        flex-shrink: 0;
+      }
+
+      #description-text {
+        font-size: 16px;
+        font-weight: 400;
+        color: var(--text-bright);
+        line-height: 1.5;
+      }
+
+      /* Metrics row */
+      #metrics-row {
+        display: flex;
+        gap: 1px;
+        border-bottom: 1px solid var(--border);
+        background: var(--border);
+      }
+
+      .metric {
+        flex: 1;
+        background: var(--surface);
+        padding: 12px 20px;
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+      }
+
+      .metric-label {
+        font-family: var(--mono);
+        font-size: 10px;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        color: var(--text-dim);
+      }
+
+      .metric-value {
+        font-family: var(--mono);
+        font-size: 18px;
+        font-weight: 500;
+        color: var(--text-bright);
+      }
+
+      .metric-value.bad {
+        color: var(--danger);
+      }
+      .metric-value.warn {
+        color: var(--warn);
+      }
+      .metric-value.good {
+        color: var(--accent);
+      }
+
+      /* Stage grid */
+      #stages-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+        gap: 1px;
+        background: var(--border);
+        padding: 0;
+      }
+
+      .stage-card {
+        background: var(--surface);
+        display: flex;
+        flex-direction: column;
+        opacity: 0;
+        transform: translateY(8px);
+        transition:
+          opacity 0.35s ease,
+          transform 0.35s ease;
+      }
+
+      .stage-card.visible {
+        opacity: 1;
+        transform: translateY(0);
+      }
+
+      .stage-header {
+        padding: 10px 16px;
+        border-bottom: 1px solid var(--border);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+
+      .stage-name {
+        font-family: var(--mono);
+        font-size: 11px;
+        letter-spacing: 0.08em;
+        color: var(--accent);
+        text-transform: uppercase;
+      }
+
+      .stage-index {
+        font-family: var(--mono);
+        font-size: 10px;
+        color: var(--text-dim);
+      }
+
+      .stage-img-wrap {
+        position: relative;
+        background: #080a08;
+        overflow: hidden;
+      }
+
+      .stage-img-wrap img {
+        width: 100%;
+        display: block;
+        transition: opacity 0.3s;
+      }
+
+      .stage-placeholder {
+        width: 100%;
+        padding-top: 75%;
+        background: repeating-linear-gradient(
+          45deg,
+          #0d0f0e,
+          #0d0f0e 4px,
+          #101210 4px,
+          #101210 8px
+        );
+      }
+
+      /* Detections list */
+      #detections-section {
+        padding: 24px 32px;
+        border-top: 1px solid var(--border);
+      }
+
+      .section-title {
+        font-family: var(--mono);
+        font-size: 10px;
+        letter-spacing: 0.15em;
+        text-transform: uppercase;
+        color: var(--text-dim);
+        margin-bottom: 16px;
+      }
+
+      #detections-list {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+
+      .detection-tag {
+        font-family: var(--mono);
+        font-size: 12px;
+        padding: 6px 12px;
+        border: 1px solid var(--border-bright);
+        color: var(--text);
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        border-radius: 2px;
+      }
+
+      .detection-conf {
+        color: var(--accent);
+        font-size: 11px;
+      }
+
+      .conf-bar {
+        width: 40px;
+        height: 2px;
+        background: var(--border-bright);
+        border-radius: 1px;
+        overflow: hidden;
+      }
+
+      .conf-fill {
+        height: 100%;
+        background: var(--accent);
+        border-radius: 1px;
+      }
+
+      /* Empty state */
+      #empty-state {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 80px 32px;
+        gap: 12px;
+      }
+
+      .empty-icon {
+        width: 48px;
+        height: 48px;
+        border: 1px solid var(--border-bright);
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 20px;
+      }
+
+      #empty-state p {
+        font-family: var(--mono);
+        font-size: 12px;
+        color: var(--text-dim);
+        letter-spacing: 0.08em;
+      }
+
+      /* Timestamp */
+      #timestamp {
+        font-family: var(--mono);
+        font-size: 10px;
+        color: var(--text-dim);
+        padding: 12px 32px;
+        border-top: 1px solid var(--border);
+        text-align: right;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <div class="logo">Vision<span>/</span>DIP <span>— debug view</span></div>
+      <div style="display: flex; align-items: center">
+        <span id="status-dot"></span>
+        <span id="status-text">waiting for capture...</span>
+      </div>
+    </header>
+
+    <div id="description-bar" class="empty">
+      <span class="scene-badge" id="scene-label">—</span>
+      <span id="description-text"
+        >Press ENTER in your terminal to capture an image.</span
+      >
+    </div>
+
+    <div id="metrics-row">
+      <div class="metric">
+        <span class="metric-label">Blur score</span>
+        <span class="metric-value" id="m-blur">—</span>
+      </div>
+      <div class="metric">
+        <span class="metric-label">Brightness</span>
+        <span class="metric-value" id="m-brightness">—</span>
+      </div>
+      <div class="metric">
+        <span class="metric-label">SNR</span>
+        <span class="metric-value" id="m-snr">—</span>
+      </div>
+      <div class="metric">
+        <span class="metric-label">Quality gate</span>
+        <span class="metric-value" id="m-gate">—</span>
+      </div>
+      <div class="metric">
+        <span class="metric-label">Objects found</span>
+        <span class="metric-value" id="m-objects">—</span>
+      </div>
+    </div>
+
+    <div id="empty-state">
+      <div class="empty-icon">◎</div>
+      <p>no capture yet — press enter in terminal 2</p>
+    </div>
+
+    <div id="stages-grid" style="display: none"></div>
+
+    <div id="detections-section" style="display: none">
+      <p class="section-title">Detected objects</p>
+      <div id="detections-list"></div>
+    </div>
+
+    <div id="timestamp" style="display: none"></div>
+
+    <script>
+      const STAGE_LABELS = {
+        "1_raw": "1 — Raw capture",
+        "2_clahe": "2 — CLAHE contrast",
+        "3_gamma": "3 — Gamma correction",
+        "4_gaussian": "4 — Gaussian smooth",
+        "5_wiener": "5 — Wiener restore",
+        "6_final": "6 — Final output",
+      };
+
+      const dot = document.getElementById("status-dot");
+      const statusText = document.getElementById("status-text");
+
+      function setStatus(state, text) {
+        dot.className = state;
+        statusText.textContent = text;
+      }
+
+      function colorClass(value, low, high) {
+        if (value < low) return "bad";
+        if (value < high) return "warn";
+        return "good";
+      }
+
+      function renderUpdate(data) {
+        // Description bar
+        const bar = document.getElementById("description-bar");
+        bar.classList.remove("empty");
+        document.getElementById("scene-label").textContent =
+          data.scene || "unknown";
+        document.getElementById("description-text").textContent =
+          data.description || "No description.";
+
+        // Metrics — read from quality report if available
+        const q = data.quality || {};
+        const blur = q.blur_score ?? null;
+        const brightness = q.brightness ?? null;
+        const snr = q.snr_db ?? null;
+        const passed = q.passed ?? null;
+
+        const mBlur = document.getElementById("m-blur");
+        const mBright = document.getElementById("m-brightness");
+        const mSnr = document.getElementById("m-snr");
+        const mGate = document.getElementById("m-gate");
+        const mObj = document.getElementById("m-objects");
+
+        if (blur !== null) {
+          mBlur.textContent = blur.toFixed(1);
+          mBlur.className = "metric-value " + colorClass(blur, 15, 80);
+        }
+        if (brightness !== null) {
+          mBright.textContent = brightness.toFixed(1);
+          mBright.className = "metric-value " + colorClass(brightness, 30, 180);
+        }
+        if (snr !== null) {
+          mSnr.textContent = snr.toFixed(1) + " dB";
+          mSnr.className = "metric-value " + colorClass(snr, 5, 15);
+        }
+        if (passed !== null) {
+          mGate.textContent = passed ? "PASSED" : "REJECTED";
+          mGate.className = "metric-value " + (passed ? "good" : "bad");
+        }
+        mObj.textContent = (data.detections || []).length;
+        mObj.className =
+          "metric-value " +
+          ((data.detections || []).length > 0 ? "good" : "warn");
+
+        // Stage images
+        const grid = document.getElementById("stages-grid");
+        const empty = document.getElementById("empty-state");
+        const stages = data.stages || {};
+
+        if (Object.keys(stages).length > 0) {
+          empty.style.display = "none";
+          grid.style.display = "grid";
+          grid.innerHTML = "";
+
+          Object.entries(stages)
+            .sort((a, b) => a[0].localeCompare(b[0]))
+            .forEach(([key, b64], i) => {
+              const label = STAGE_LABELS[key] || key;
+              const card = document.createElement("div");
+              card.className = "stage-card";
+              card.innerHTML = `
+          <div class="stage-header">
+            <span class="stage-name">${label}</span>
+            <span class="stage-index">${i + 1}/${Object.keys(stages).length}</span>
+          </div>
+          <div class="stage-img-wrap">
+            <img src="data:image/jpeg;base64,${b64}" alt="${label}" loading="lazy"/>
+          </div>`;
+              grid.appendChild(card);
+
+              // Staggered reveal animation
+              setTimeout(() => card.classList.add("visible"), i * 60);
+            });
+        }
+
+        // Detections
+        const detSection = document.getElementById("detections-section");
+        const detList = document.getElementById("detections-list");
+        const dets = data.detections || [];
+
+        if (dets.length > 0) {
+          detSection.style.display = "block";
+          detList.innerHTML = dets
+            .sort((a, b) => b.confidence - a.confidence)
+            .map(
+              (d) => `
+        <div class="detection-tag">
+          ${d.label}
+          <span class="detection-conf">${(d.confidence * 100).toFixed(0)}%</span>
+          <div class="conf-bar">
+            <div class="conf-fill" style="width:${d.confidence * 100}%"></div>
+          </div>
+        </div>`,
+            )
+            .join("");
+        } else {
+          detSection.style.display = "none";
+        }
+
+        // Timestamp
+        const ts = document.getElementById("timestamp");
+        ts.style.display = "block";
+        ts.textContent = "Last updated: " + new Date().toLocaleTimeString();
+
+        setStatus(
+          "live",
+          "live — last capture " + new Date().toLocaleTimeString(),
+        );
+      }
+
+      // Connect to SSE
+      function connect() {
+        setStatus("", "connecting...");
+        const es = new EventSource("/events");
+
+        es.onopen = () => setStatus("live", "connected — waiting for capture");
+
+        es.onmessage = (e) => {
+          setStatus("processing", "rendering...");
+          try {
+            const data = JSON.parse(e.data);
+            renderUpdate(data);
+          } catch (err) {
+            console.error("Parse error:", err);
+          }
+        };
+
+        es.onerror = () => {
+          setStatus("", "disconnected — retrying...");
+          es.close();
+          setTimeout(connect, 2000);
+        };
+      }
+
+      connect();
+    </script>
+  </body>
+</html>

@@ -1,3 +1,4 @@
+# compression.py - image compression utilities (JPEG encoding)
 import cv2
 import numpy as np
 import io

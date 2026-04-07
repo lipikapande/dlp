@@ -1,3 +1,4 @@
+# spatial.py - spatial domain filters (Gaussian, bilateral)
 import cv2
 import numpy as np
 

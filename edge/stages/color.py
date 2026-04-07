@@ -1,3 +1,5 @@
+# color.py - color space conversions and adjustments
+
 import cv2
 import numpy as np
 
