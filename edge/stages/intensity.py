@@ -30,11 +30,22 @@ def apply_gamma(image: np.ndarray, gamma: float = 1.2) -> np.ndarray:
     ], dtype=np.uint8)
     return cv2.LUT(image, lut)
 
-def auto_gamma(image: np.ndarray) -> np.ndarray:
-    """Compute gamma based on mean brightness, then apply."""
-    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-    mean_brightness = gray.mean() / 255.0
-    # Darker images get stronger brightening
-    gamma = np.log(0.5) / np.log(mean_brightness + 1e-6)
-    gamma = float(np.clip(gamma, 0.5, 2.5))
-    return apply_gamma(image, gamma)
+# def auto_gamma(image: np.ndarray) -> np.ndarray:
+#     """Compute gamma based on mean brightness, then apply."""
+#     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+#     mean_brightness = gray.mean() / 255.0
+#     # Darker images get stronger brightening
+#     gamma = np.log(0.5) / np.log(mean_brightness + 1e-6)
+#     gamma = float(np.clip(gamma, 0.5, 2.5))
+#     return apply_gamma(image, gamma)
+
+def auto_gamma(image):
+    gamma = 1.5  # brighten
+    invGamma = 1.0 / gamma
+
+    table = np.array([
+        ((i / 255.0) ** invGamma) * 255
+        for i in np.arange(256)
+    ]).astype("uint8")
+
+    return cv2.LUT(image, table)

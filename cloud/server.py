@@ -8,6 +8,12 @@ import base64
 from cloud.detector import detect_objects
 from cloud.classifier import classify_scene
 from cloud.nlg import generate_description
+from fastapi import UploadFile, File
+import cv2
+import numpy as np
+from edge.pipeline import run_pipeline
+from edge.quality import assess_quality
+from edge.capture import capture_snapshot
 
 app = FastAPI()
 
@@ -89,3 +95,95 @@ async def sse(request: Request):
 async def ui():
     with open("cloud/ui.html", "r", encoding="utf-8") as f:
         return f.read()
+    
+@app.post("/upload")
+async def upload(file: UploadFile = File(...)):
+    contents = await file.read()
+    
+    npimg = np.frombuffer(contents, np.uint8)
+    image = cv2.imdecode(npimg, cv2.IMREAD_COLOR)
+
+    if image is None:
+        raise HTTPException(status_code=400, detail="Invalid image")
+
+    # Run same pipeline as edge
+    processed, stages = run_pipeline(image)
+
+    # Quality
+    report = assess_quality(processed)
+
+    # Encode final image
+    _, buf = cv2.imencode(".jpg", processed)
+    image_b64 = base64.b64encode(buf).decode()
+
+    # Encode stages
+    stages_b64 = {}
+    for k, img in stages.items():
+        _, b = cv2.imencode(".jpg", img)
+        stages_b64[k] = base64.b64encode(b).decode()
+
+    # Same logic as /infer
+    detections = detect_objects(processed)
+    scene = classify_scene(processed)
+    description = generate_description(detections, scene)
+
+    result = {
+        "description": description,
+        "detections": detections,
+        "scene": scene,
+        "stages": stages_b64,
+        "quality": {
+            "blur_score": report.blur_score,
+            "brightness": report.brightness,
+            "snr_db": report.snr_db,
+            "passed": report.passed,
+        },
+    }
+
+    global _latest
+    _latest = result
+    broadcast(result)
+
+    return JSONResponse(result)
+
+@app.get("/trigger")
+async def trigger():
+    image = capture_snapshot()
+
+    if image is None:
+        raise HTTPException(status_code=500, detail="Camera error")
+
+    processed, stages = run_pipeline(image)
+    report = assess_quality(processed)
+
+    # encode
+    _, buf = cv2.imencode(".jpg", processed)
+    image_b64 = base64.b64encode(buf).decode()
+
+    stages_b64 = {}
+    for k, img in stages.items():
+        _, b = cv2.imencode(".jpg", img)
+        stages_b64[k] = base64.b64encode(b).decode()
+
+    detections = detect_objects(processed)
+    scene = classify_scene(processed)
+    description = generate_description(detections, scene)
+
+    result = {
+        "description": description,
+        "detections": detections,
+        "scene": scene,
+        "stages": stages_b64,
+        "quality": {
+            "blur_score": report.blur_score,
+            "brightness": report.brightness,
+            "snr_db": report.snr_db,
+            "passed": report.passed,
+        },
+    }
+
+    global _latest
+    _latest = result
+    broadcast(result)
+
+    return JSONResponse(result)

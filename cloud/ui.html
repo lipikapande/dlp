@@ -1,4 +1,4 @@
-<!-- ui.html -->
+ui.html
 
 <!doctype html>
 <html lang="en">
@@ -343,6 +343,21 @@
         <span id="status-dot"></span>
         <span id="status-text">waiting for capture...</span>
       </div>
+      <div style="display: flex; gap: 10px; align-items: center">
+        <button onclick="capture()">📸 Capture</button>
+
+        <button onclick="document.getElementById('fileInput').click()">
+          📂 Upload
+        </button>
+
+        <input
+          type="file"
+          id="fileInput"
+          accept="image/*"
+          style="display: none"
+          onchange="uploadImage(event)"
+        />
+      </div>
     </header>
 
     <div id="description-bar" class="empty">
@@ -391,16 +406,35 @@
 
     <script>
       const STAGE_LABELS = {
-        "1_raw": "1 — Raw capture",
-        "2_clahe": "2 — CLAHE contrast",
-        "3_gamma": "3 — Gamma correction",
-        "4_gaussian": "4 — Gaussian smooth",
-        "5_wiener": "5 — Wiener restore",
-        "6_final": "6 — Final output",
+        "01_raw": "1 — Raw capture",
+        "02_denoise": "2 — Denoise",
+        "03_clahe": "3 — CLAHE contrast",
+        "04_gamma": "4 — Gamma correction",
+        "05_butterworth": "5 — Butterworth filter",
+        "06_edges": "6 — Edge detection",
+        "07_threshold": "7 — Thresholding",
+        "08_wiener": "8 — Wiener restore",
+        "09_sharpen": "9 — Sharpen",
+        "10_final": "10 — Final output",
       };
 
       const dot = document.getElementById("status-dot");
       const statusText = document.getElementById("status-text");
+
+      async function capture() {
+        await fetch("/trigger");
+      }
+
+      async function uploadImage(event) {
+        const file = event.target.files[0];
+        const formData = new FormData();
+        formData.append("file", file);
+
+        await fetch("/upload", {
+          method: "POST",
+          body: formData,
+        });
+      }
 
       function setStatus(state, text) {
         dot.className = state;
