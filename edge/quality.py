@@ -1,23 +1,28 @@
-# quality.py - image quality assessment (blur, brightness, noise)
+# quality.py - image quality assessment (Algorithm 6 from paper)
 import cv2
 import numpy as np
 from dataclasses import dataclass
 from config import CONFIG
+
 
 @dataclass
 class QualityReport:
     blur_score: float
     brightness: float
     snr_db: float
+    edge_density: float
     passed: bool
     rejection_reason: str | None
+
 
 def compute_blur(gray: np.ndarray) -> float:
     """Laplacian variance — lower = blurrier."""
     return float(cv2.Laplacian(gray, cv2.CV_64F).var())
 
+
 def compute_brightness(gray: np.ndarray) -> float:
     return float(gray.mean())
+
 
 def compute_snr(gray: np.ndarray) -> float:
     """Signal-to-noise ratio in dB. Uses mean/std estimate."""
@@ -27,13 +32,27 @@ def compute_snr(gray: np.ndarray) -> float:
         return 0.0
     return float(20 * np.log10(mean / std))
 
+
+def compute_edge_density(gray: np.ndarray) -> float:
+    """Fraction of edge pixels detected by Canny (num_edge_pixels / M*N)."""
+    edges = cv2.Canny(gray, 50, 150)
+    m, n = gray.shape
+    return float(np.count_nonzero(edges)) / (m * n)
+
+
 def assess_quality(image: np.ndarray) -> QualityReport:
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
 
     blur = compute_blur(gray)
     brightness = compute_brightness(gray)
     snr = compute_snr(gray)
+    edge_density = compute_edge_density(gray)
 
+    # Algorithm 6 quality gate:
+    # PASS if blur_score > BLUR_THRESHOLD AND
+    #          BRIGHTNESS_MIN < brightness < BRIGHTNESS_MAX AND
+    #          edge_density > 0.05 AND
+    #          snr >= SNR_THRESHOLD
     rejection = None
     if blur < CONFIG.BLUR_THRESHOLD:
         rejection = f"Too blurry (score={blur:.1f}, need>{CONFIG.BLUR_THRESHOLD})"
@@ -43,11 +62,14 @@ def assess_quality(image: np.ndarray) -> QualityReport:
         rejection = f"Overexposed (brightness={brightness:.1f})"
     elif snr < CONFIG.SNR_THRESHOLD:
         rejection = f"High noise (SNR={snr:.1f}dB)"
+    elif edge_density < 0.05:
+        rejection = f"Insufficient detail (edge_density={edge_density:.3f})"
 
     return QualityReport(
         blur_score=blur,
         brightness=brightness,
         snr_db=snr,
+        edge_density=edge_density,
         passed=(rejection is None),
         rejection_reason=rejection
     )

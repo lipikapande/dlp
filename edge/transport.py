@@ -6,24 +6,27 @@ import numpy as np
 import cv2
 from config import CONFIG
 
-def _encode_stages(stages: dict) -> dict:  # take it as a parameter
+def _encode_stages(stages: dict) -> dict:
     result = {}
     for k, img in stages.items():
         _, buf = cv2.imencode(".jpg", img, [cv2.IMWRITE_JPEG_QUALITY, 85])
         result[k] = base64.b64encode(buf).decode()
     return result
 
-async def upload_image(image_bytes: bytes, stages: dict, quality_report=None) -> dict | None:
+async def upload_image(image_bytes: bytes, stages: dict,
+                       quality_report=None, features: dict = None) -> dict | None:
     headers = {"Content-Type": "application/json"}
-    
+
     payload = {
         "image": base64.b64encode(image_bytes).decode(),
         "stages": _encode_stages(stages),
+        "features": features or {},
         "quality": {
-            "blur_score": round(quality_report.blur_score, 2),
-            "brightness": round(quality_report.brightness, 2),
-            "snr_db": round(quality_report.snr_db, 2),
-            "passed": quality_report.passed,
+            "blur_score":    round(quality_report.blur_score, 2),
+            "brightness":    round(quality_report.brightness, 2),
+            "snr_db":        round(quality_report.snr_db, 2),
+            "edge_density":  round(quality_report.edge_density, 4),
+            "passed":        quality_report.passed,
         } if quality_report else {}
     }
 
@@ -40,5 +43,6 @@ async def upload_image(image_bytes: bytes, stages: dict, quality_report=None) ->
         print(f"[transport] Error: {e}")
         return None
 
-def upload_sync(image_bytes: bytes, stages: dict, quality_report=None) -> dict | None:
-    return asyncio.run(upload_image(image_bytes, stages, quality_report))
+def upload_sync(image_bytes: bytes, stages: dict,
+                quality_report=None, features: dict = None) -> dict | None:
+    return asyncio.run(upload_image(image_bytes, stages, quality_report, features))

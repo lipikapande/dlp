@@ -1,7 +1,7 @@
 opencv-python==4.9.0.80
 numpy
 scipy
-scikit-image
+scikit-image>=0.21
 ultralytics
 torch
 torchvision

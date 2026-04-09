@@ -19,7 +19,7 @@ def on_trigger():
         speak("Camera error.")
         return
 
-    processed, stages = run_pipeline(image)
+    processed, stages, features = run_pipeline(image)
     print(f"[main] Pipeline complete. Stages: {list(stages.keys())}")
 
     # Assess quality on raw image (for display metrics)
@@ -33,7 +33,7 @@ def on_trigger():
     # Send the RAW image for detection — YOLO performs better on unprocessed input.
     # Stages (from processed image) are sent separately for the debug UI display.
     jpeg_bytes = compress_to_jpeg_bytes(image, quality=75)
-    result = upload_sync(jpeg_bytes, stages, report)
+    result = upload_sync(jpeg_bytes, stages, report, features)
 
     if result is None:
         speak("Server not responding.")

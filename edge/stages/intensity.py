@@ -40,20 +40,17 @@ def apply_gamma(image: np.ndarray, gamma: float = 1.2) -> np.ndarray:
 #     return apply_gamma(image, gamma)
 
 def auto_gamma(image: np.ndarray) -> np.ndarray:
-    """Adaptive gamma: brightens dark images, darkens overexposed ones.
+    """Step-function gamma correction based on mean brightness (Algorithm 2 in paper).
 
-    apply_gamma uses LUT = (i/255)^(1/gamma) * 255, so:
-      gamma > 1 → inv_gamma < 1 → output > input → BRIGHTENS
-      gamma < 1 → inv_gamma > 1 → output < input → DARKENS
-
-    Formula: gamma = log(mean) / log(0.5)
-      dark image  (mean=0.09): gamma = log(0.09)/log(0.5) = 3.5  → brightens
-      bright image (mean=0.91): gamma = log(0.91)/log(0.5) = 0.13 → darkens
+    μ < 80  → γ = 0.5  (strong brightening for dark images)
+    μ > 180 → γ = 1.5  (darkening for overexposed images)
+    else    → no change (image is in acceptable range)
     """
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-    mean_brightness = gray.mean() / 255.0
-    gamma = float(np.clip(
-        np.log(mean_brightness + 1e-6) / np.log(0.5),
-        0.3, 4.0
-    ))
-    return apply_gamma(image, gamma)
+    mu = gray.mean()
+    if mu < 80:
+        return apply_gamma(image, gamma=0.5)
+    elif mu > 180:
+        return apply_gamma(image, gamma=1.5)
+    else:
+        return image

@@ -112,8 +112,8 @@ async def upload(file: UploadFile = File(...)):
     if image is None:
         raise HTTPException(status_code=400, detail="Invalid image")
 
-    # Run pipeline for visual stages (demo/debug display only)
-    processed, stages = run_pipeline(image)
+    # Run pipeline for visual stages + Module 6 features
+    processed, stages, features = run_pipeline(image)
 
     # Quality assessed on raw image
     report = assess_quality(image)
@@ -136,10 +136,12 @@ async def upload(file: UploadFile = File(...)):
         "detections": detections,
         "scene": scene,
         "stages": stages_b64,
+        "features": features,
         "quality": {
             "blur_score": report.blur_score,
             "brightness": report.brightness,
             "snr_db": report.snr_db,
+            "edge_density": report.edge_density,
             "passed": report.passed,
         },
     }
@@ -157,8 +159,8 @@ async def trigger():
     if image is None:
         raise HTTPException(status_code=500, detail="Camera error")
 
-    # Run pipeline for visual stages (demo/debug display only)
-    processed, stages = run_pipeline(image)
+    # Run pipeline for visual stages + Module 6 features
+    processed, stages, features = run_pipeline(image)
 
     # Quality assessed on raw image
     report = assess_quality(image)
@@ -168,26 +170,25 @@ async def trigger():
         _, b = cv2.imencode(".jpg", img)
         stages_b64[k] = base64.b64encode(b).decode()
 
-    # Always detect on the RAW image — YOLO was trained on natural images,
-    # color/contrast filters shift the distribution and reduce confidence
+    # Always detect on the RAW image
     detections = detect_objects(image)
     scene = classify_scene(image)
     description = generate_description(detections, scene)
-
 
     result = {
         "description": description,
         "detections": detections,
         "scene": scene,
         "stages": stages_b64,
+        "features": features,
         "quality": {
             "blur_score": report.blur_score,
             "brightness": report.brightness,
             "snr_db": report.snr_db,
+            "edge_density": report.edge_density,
             "passed": report.passed,
         },
     }
-
 
     global _latest
     _latest = result
