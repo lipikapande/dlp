@@ -45,7 +45,10 @@ async def infer(request: Request):
     stages_b64 = payload.get("stages", {})
     quality_data = payload.get("quality", {})
 
-    # Detect/classify on the already-processed image
+    # Detect/classify on the image sent from edge.
+    # NOTE: edge/transport.py sends the processed image here.
+    # For best results, edge should send the raw image for detection
+    # and processed stages for display only (future improvement).
     detections = detect_objects(image)
     scene = classify_scene(image)
     description = generate_description(detections, scene)
@@ -109,15 +112,11 @@ async def upload(file: UploadFile = File(...)):
     if image is None:
         raise HTTPException(status_code=400, detail="Invalid image")
 
-    # Run same pipeline as edge
+    # Run pipeline for visual stages (demo/debug display only)
     processed, stages = run_pipeline(image)
 
-    # Quality
-    report = assess_quality(processed)
-
-    # Encode final image
-    _, buf = cv2.imencode(".jpg", processed)
-    image_b64 = base64.b64encode(buf).decode()
+    # Quality assessed on raw image
+    report = assess_quality(image)
 
     # Encode stages
     stages_b64 = {}
@@ -125,9 +124,10 @@ async def upload(file: UploadFile = File(...)):
         _, b = cv2.imencode(".jpg", img)
         stages_b64[k] = base64.b64encode(b).decode()
 
-    # Same logic as /infer
-    detections = detect_objects(processed)
-    scene = classify_scene(processed)
+    # Always detect on the RAW image — YOLO was trained on natural images,
+    # color/contrast filters shift the distribution and reduce confidence
+    detections = detect_objects(image)
+    scene = classify_scene(image)
     description = generate_description(detections, scene)
     threading.Thread(target=speak, args=(description,), daemon=True).start()
 
@@ -157,20 +157,21 @@ async def trigger():
     if image is None:
         raise HTTPException(status_code=500, detail="Camera error")
 
+    # Run pipeline for visual stages (demo/debug display only)
     processed, stages = run_pipeline(image)
-    report = assess_quality(processed)
 
-    # encode
-    _, buf = cv2.imencode(".jpg", processed)
-    image_b64 = base64.b64encode(buf).decode()
+    # Quality assessed on raw image
+    report = assess_quality(image)
 
     stages_b64 = {}
     for k, img in stages.items():
         _, b = cv2.imencode(".jpg", img)
         stages_b64[k] = base64.b64encode(b).decode()
 
-    detections = detect_objects(processed)
-    scene = classify_scene(processed)
+    # Always detect on the RAW image — YOLO was trained on natural images,
+    # color/contrast filters shift the distribution and reduce confidence
+    detections = detect_objects(image)
+    scene = classify_scene(image)
     description = generate_description(detections, scene)
 
 

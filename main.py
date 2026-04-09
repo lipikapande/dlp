@@ -22,16 +22,18 @@ def on_trigger():
     processed, stages = run_pipeline(image)
     print(f"[main] Pipeline complete. Stages: {list(stages.keys())}")
 
-    report = assess_quality(processed)
+    # Assess quality on raw image (for display metrics)
+    report = assess_quality(image)
     print(f"[main] Quality: blur={report.blur_score:.1f}, "
           f"brightness={report.brightness:.1f}, passed={report.passed}")
 
     if not report.passed:
         print(f"[main] Quality warning: {report.rejection_reason} — sending anyway")
-        speak(f"Image quality low: {report.rejection_reason}. Describing anyway.")
 
-    jpeg_bytes = compress_to_jpeg_bytes(processed, quality=75)
-    result = upload_sync(jpeg_bytes, stages, report)  # always reaches here now
+    # Send the RAW image for detection — YOLO performs better on unprocessed input.
+    # Stages (from processed image) are sent separately for the debug UI display.
+    jpeg_bytes = compress_to_jpeg_bytes(image, quality=75)
+    result = upload_sync(jpeg_bytes, stages, report)
 
     if result is None:
         speak("Server not responding.")
