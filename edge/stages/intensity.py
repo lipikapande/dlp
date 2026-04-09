@@ -49,8 +49,8 @@ def auto_gamma(image: np.ndarray) -> np.ndarray:
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
     mu = gray.mean()
     if mu < 80:
-        return apply_gamma(image, gamma=0.5)
+        return apply_gamma(image, gamma=2.0)   # brightens dark images
     elif mu > 180:
-        return apply_gamma(image, gamma=1.5)
+        return apply_gamma(image, gamma=0.5)   # darkens overexposed images
     else:
         return image

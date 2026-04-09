@@ -67,8 +67,9 @@ def run_pipeline(image: np.ndarray) -> tuple[np.ndarray, dict]:
                 working = apply_butterworth(working, cutoff=0.3, order=2, high_pass=False)
                 stages["05_butterworth_lp"] = working.copy()
             elif energy_ratio <= 0.7:
-                # Mid range → high-pass for sharpening
-                working = apply_butterworth(working, cutoff=0.3, order=2, high_pass=True)
+                # Mid range → high-pass for sharpening; blend back so image is not destroyed
+                hp = apply_butterworth(working, cutoff=0.3, order=2, high_pass=True)
+                working = cv2.addWeighted(working, 1.0, hp, 0.4, 0)
                 stages["05_butterworth_hp"] = working.copy()
             # energy_ratio > 0.7 → already sharp, skip
 
