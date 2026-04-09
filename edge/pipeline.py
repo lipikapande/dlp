@@ -59,7 +59,9 @@ def run_pipeline(image: np.ndarray) -> tuple[np.ndarray, dict]:
             stages["04_denoise"] = working.copy()
 
         # ── Module 3: Frequency Domain Filtering ─────────────────────────
-        if CONFIG.ENABLE_FREQUENCY_FILTER and (is_blurry or is_noisy):
+        # Only gate on noise — blurry images have low high-freq energy and would
+        # incorrectly trigger LP (which makes blur worse, not better).
+        if CONFIG.ENABLE_FREQUENCY_FILTER and is_noisy:
             energy_ratio = compute_energy_ratio(working)
             print(f"[pipeline] Energy ratio: {energy_ratio:.3f}")
             if energy_ratio < 0.3:
@@ -82,8 +84,10 @@ def run_pipeline(image: np.ndarray) -> tuple[np.ndarray, dict]:
 
         # ── Unsharp mask for blur ─────────────────────────────────────────
         if is_blurry:
+            # Stronger sharpening for very blurry images (blur_score < 20)
+            alpha = 2.5 if raw_report.blur_score < 20 else 1.8
             blur_pass = cv2.GaussianBlur(working, (0, 0), 3)
-            working = cv2.addWeighted(working, 1.8, blur_pass, -0.8, 0)
+            working = cv2.addWeighted(working, alpha, blur_pass, -(alpha - 1), 0)
             stages["06_sharpen"] = working.copy()
 
         post_report = assess_quality(working)
