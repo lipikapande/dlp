@@ -4,7 +4,7 @@ SCENE_TEMPLATES = {
     "indoor": "You are indoors.",
     "outdoor": "You are outdoors.",
     "street": "You are on a street.",
-    "default": "The scene is unclear.",
+    "default": "",
 }
 
 def generate_description(detections: list[dict], scene: str) -> str:
@@ -17,8 +17,14 @@ def generate_description(detections: list[dict], scene: str) -> str:
     if not detections:
         return f"{scene_phrase} No objects detected with high confidence."
 
-    # Sort by confidence descending, take top 5
-    top = sorted(detections, key=lambda x: x["confidence"], reverse=True)[:5]
+    # Sort by confidence descending, deduplicate by label, take top 5
+    seen = set()
+    unique = []
+    for d in sorted(detections, key=lambda x: x["confidence"], reverse=True):
+        if d["label"] not in seen:
+            seen.add(d["label"])
+            unique.append(d)
+    top = unique[:5]
     labels = [f"{d['label']} ({d['confidence']*100:.0f}%)" for d in top]
 
     count = len(labels)

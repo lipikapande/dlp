@@ -3,6 +3,7 @@ from fastapi.responses import JSONResponse, HTMLResponse, StreamingResponse
 import numpy as np
 import cv2
 import asyncio
+import threading
 import json
 import base64
 from cloud.detector import detect_objects
@@ -14,6 +15,7 @@ import numpy as np
 from edge.pipeline import run_pipeline
 from edge.quality import assess_quality
 from edge.capture import capture_snapshot
+from tts import speak
 
 app = FastAPI()
 
@@ -47,6 +49,7 @@ async def infer(request: Request):
     detections = detect_objects(image)
     scene = classify_scene(image)
     description = generate_description(detections, scene)
+    threading.Thread(target=speak, args=(description,), daemon=True).start()
 
     result = {
         "description": description,
@@ -126,6 +129,7 @@ async def upload(file: UploadFile = File(...)):
     detections = detect_objects(processed)
     scene = classify_scene(processed)
     description = generate_description(detections, scene)
+    threading.Thread(target=speak, args=(description,), daemon=True).start()
 
     result = {
         "description": description,
@@ -169,6 +173,7 @@ async def trigger():
     scene = classify_scene(processed)
     description = generate_description(detections, scene)
 
+
     result = {
         "description": description,
         "detections": detections,
@@ -182,8 +187,10 @@ async def trigger():
         },
     }
 
+
     global _latest
     _latest = result
     broadcast(result)
+    threading.Thread(target=speak, args=(description,), daemon=True).start()
 
     return JSONResponse(result)

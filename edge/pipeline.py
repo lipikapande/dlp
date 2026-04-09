@@ -1,7 +1,6 @@
 import numpy as np
 from config import CONFIG
 from edge.stages.intensity import apply_clahe, auto_gamma
-from edge.stages.spatial import apply_gaussian
 from edge.stages.restoration import apply_wiener_filter
 from edge.stages.frequency import apply_butterworth
 import cv2
@@ -10,54 +9,73 @@ from edge.quality import assess_quality
 stage_images: dict[str, np.ndarray] = {}
 
 def run_pipeline(image: np.ndarray) -> tuple[np.ndarray, dict]:
-    stages = {}
-
+    stages: dict[str, np.ndarray] = {}
     stages["01_raw"] = image.copy()
 
-    report = assess_quality(image)
+    raw_report = assess_quality(image)
+    print(f"[pipeline] Raw quality: blur={raw_report.blur_score:.1f}, "
+          f"brightness={raw_report.brightness:.1f}, snr={raw_report.snr_db:.1f}dB, "
+          f"passed={raw_report.passed}")
 
-    # ✅ DENOISE (only if noisy)
-    if report.snr_db < 5 and report.blur_score > 120:
-        image = cv2.bilateralFilter(image, 9, 75, 75)
-        stages["02_denoise"] = image.copy()
+    if raw_report.passed:
+        print("[pipeline] Raw image passed — skipping enhancement filters.")
+        working = image.copy()
 
-    # ✅ CLAHE (only if dark)
-    if report.brightness < 130:
-        image = apply_clahe(image, clip_limit=2.0)
-        stages["03_clahe"] = image.copy()
+    else:
+        print(f"[pipeline] Raw image failed: {raw_report.rejection_reason}")
 
-    # ✅ GAMMA (fine adjustment)
-    if report.brightness < 140:
-        image = auto_gamma(image)
-        stages["04_gamma"] = image.copy()
+        # Derive per-axis failure flags independently so compound failures
+        # (e.g. dark AND noisy) are both caught — assess_quality's elif chain
+        # only stores the first failure reason in rejection_reason.
+        is_dark   = raw_report.brightness < CONFIG.BRIGHTNESS_MIN
+        is_bright = raw_report.brightness > CONFIG.BRIGHTNESS_MAX
+        is_blurry = raw_report.blur_score  < CONFIG.BLUR_THRESHOLD
+        is_noisy  = raw_report.snr_db      < CONFIG.SNR_THRESHOLD
 
-    # ✅ BUTTERWORTH (only if blur)
-    if CONFIG.ENABLE_FREQUENCY_FILTER and report.blur_score < 100:
-        image = apply_butterworth(image)
-        stages["05_butterworth"] = image.copy()
+        working = image.copy()
 
-    # ✅ EDGES (always for demo)
-    edges = cv2.Canny(image, 100, 200)
-    stages["06_edges"] = edges.copy()
+        if is_dark or is_bright:
+            working = apply_clahe(working, clip_limit=2.0)
+            stages["02_clahe"] = working.copy()
+            working = auto_gamma(working)
+            stages["03_gamma"] = working.copy()
 
-    # ✅ THRESHOLD (always for demo)
-    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+        if is_noisy:
+            # NL-means gives smooth noise removal without edge blurring
+            if len(working.shape) == 2 or working.shape[2] == 1:
+                working = cv2.fastNlMeansDenoising(working, None, h=10,
+                                                   templateWindowSize=7, searchWindowSize=21)
+            else:
+                working = cv2.fastNlMeansDenoisingColored(working, None, h=10, hColor=10,
+                                                          templateWindowSize=7, searchWindowSize=21)
+            stages["04_denoise"] = working.copy()
+
+        if is_blurry:
+            # Unsharp mask with stronger weight for genuinely blurry images
+            blur_pass = cv2.GaussianBlur(working, (0, 0), 2)
+            working = cv2.addWeighted(working, 1.8, blur_pass, -0.8, 0)
+            stages["06_sharpen"] = working.copy()
+
+        if is_noisy and CONFIG.ENABLE_WIENER:
+            restored = apply_wiener_filter(working, kernel_size=5)
+            if restored.mean() > 5.0:
+                working = restored
+            stages["07_wiener"] = working.copy()
+
+        post_report = assess_quality(working)
+        print(f"[pipeline] Post-filter quality: blur={post_report.blur_score:.1f}, "
+              f"brightness={post_report.brightness:.1f}, passed={post_report.passed}")
+        if not post_report.passed:
+            print(f"[pipeline] Still below gate after filtering: {post_report.rejection_reason}")
+
+    # Demo stages — always run regardless of path
+    edges = cv2.Canny(working, 100, 200)
+    stages["08_edges"] = edges.copy()
+
+    gray = cv2.cvtColor(working, cv2.COLOR_BGR2GRAY)
     _, thresh = cv2.threshold(gray, 127, 255, cv2.THRESH_BINARY)
-    stages["07_threshold"] = thresh.copy()
+    stages["09_threshold"] = thresh.copy()
 
-    # ✅ WIENER (only if very noisy)
-    if CONFIG.ENABLE_WIENER and report.snr_db < 3:
-        restored = apply_wiener_filter(image, kernel_size=5)
-        if restored.mean() > 5.0:
-            image = restored
-        stages["08_wiener"] = image.copy()
+    stages["10_final"] = working.copy()
 
-    # ✅ SHARPEN (only if still blurry)
-    if report.blur_score < 200:
-        blur = cv2.GaussianBlur(image, (0,0), 3)
-        image = cv2.addWeighted(image, 1.8, blur, -0.8, 0)
-        stages["09_sharpen"] = image.copy()
-
-    stages["10_final"] = image.copy()
-
-    return image, stages
+    return working, stages
