@@ -297,6 +297,54 @@ ui.html
         border-radius: 1px;
       }
 
+      /* Assistive detections */
+      #assistive-section {
+        padding: 20px 32px;
+        border-top: 1px solid var(--border);
+        background: #100d0d;
+      }
+
+      #assistive-list {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 12px;
+      }
+
+      .assistive-tag {
+        font-family: var(--mono);
+        font-size: 12px;
+        padding: 6px 12px;
+        border-radius: 2px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-weight: 500;
+        letter-spacing: 0.05em;
+      }
+
+      .assistive-tag.HIGH {
+        border: 1px solid var(--danger);
+        color: var(--danger);
+        background: rgba(224, 80, 80, 0.06);
+      }
+      .assistive-tag.MEDIUM {
+        border: 1px solid var(--warn);
+        color: var(--warn);
+        background: rgba(240, 160, 48, 0.06);
+      }
+      .assistive-tag.LOW {
+        border: 1px solid var(--border-bright);
+        color: var(--text-dim);
+      }
+
+      .assistive-prox {
+        font-size: 10px;
+        opacity: 0.7;
+        text-transform: lowercase;
+        letter-spacing: 0.08em;
+      }
+
       /* Empty state */
       #empty-state {
         display: flex;
@@ -397,8 +445,13 @@ ui.html
 
     <div id="stages-grid" style="display: none"></div>
 
+    <div id="assistive-section" style="display: none">
+      <p class="section-title">Assistive analysis — processed image</p>
+      <div id="assistive-list"></div>
+    </div>
+
     <div id="detections-section" style="display: none">
-      <p class="section-title">Detected objects</p>
+      <p class="section-title">YOLO detections — raw image</p>
       <div id="detections-list"></div>
     </div>
 
@@ -406,16 +459,17 @@ ui.html
 
     <script>
       const STAGE_LABELS = {
-        "01_raw": "1 — Raw capture",
-        "02_clahe": "2 — CLAHE contrast",
-        "03_gamma": "3 — Gamma correction",
-        "04_denoise": "4 — Denoise",
-        "05_butterworth": "5 — Butterworth filter",
-        "06_sharpen": "6 — Sharpen",
-        "07_wiener": "7 — Wiener restore",
-        "08_edges": "8 — Edge detection",
-        "09_threshold": "9 — Thresholding",
-        "10_final": "10 — Final output",
+        "01_raw":             "1 — Raw capture",
+        "02_clahe":           "2 — CLAHE contrast",
+        "03_gamma":           "3 — Gamma correction",
+        "04_denoise":         "4 — Denoise (NL-means)",
+        "05_butterworth_lp":  "5 — Butterworth LP (noise)",
+        "05_butterworth_hp":  "5 — Butterworth HP (sharpen)",
+        "06_sharpen":         "6 — Unsharp mask",
+        "07_wiener":          "7 — Wiener restore",
+        "08_edges":           "8 — Canny edges",
+        "09_threshold":       "9 — Thresholding",
+        "10_final":           "10 — Final output",
       };
 
       const dot = document.getElementById("status-dot");
@@ -521,7 +575,24 @@ ui.html
             });
         }
 
-        // Detections
+        // Assistive detections (from processed image)
+        const assistSection = document.getElementById("assistive-section");
+        const assistList = document.getElementById("assistive-list");
+        const assistive = data.assistive || [];
+
+        if (assistive.length > 0) {
+          assistSection.style.display = "block";
+          assistList.innerHTML = assistive.map(a => `
+            <div class="assistive-tag ${a.priority}">
+              ${a.label}
+              <span class="assistive-prox">${a.proximity}</span>
+              <span class="detection-conf">${(a.confidence * 100).toFixed(0)}%</span>
+            </div>`).join("");
+        } else {
+          assistSection.style.display = "none";
+        }
+
+        // YOLO detections (from raw image)
         const detSection = document.getElementById("detections-section");
         const detList = document.getElementById("detections-list");
         const dets = data.detections || [];

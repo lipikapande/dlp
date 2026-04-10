@@ -9,6 +9,7 @@ import base64
 from cloud.detector import detect_objects
 from cloud.classifier import classify_scene
 from cloud.nlg import generate_description
+from cloud.assistive_detector import detect_assistive
 from fastapi import UploadFile, File
 import cv2
 import numpy as np
@@ -124,16 +125,18 @@ async def upload(file: UploadFile = File(...)):
         _, b = cv2.imencode(".jpg", img)
         stages_b64[k] = base64.b64encode(b).decode()
 
-    # Always detect on the RAW image — YOLO was trained on natural images,
-    # color/contrast filters shift the distribution and reduce confidence
+    # YOLO on RAW — trained on natural images; filters shift distribution
     detections = detect_objects(image)
     scene = classify_scene(image)
-    description = generate_description(detections, scene)
+    # Assistive detector on PROCESSED — preprocessing feeds into this layer
+    assistive = detect_assistive(processed)
+    description = generate_description(detections, scene, assistive)
     threading.Thread(target=speak, args=(description,), daemon=True).start()
 
     result = {
         "description": description,
         "detections": detections,
+        "assistive": assistive,
         "scene": scene,
         "stages": stages_b64,
         "features": features,
@@ -170,14 +173,16 @@ async def trigger():
         _, b = cv2.imencode(".jpg", img)
         stages_b64[k] = base64.b64encode(b).decode()
 
-    # Always detect on the RAW image
+    # YOLO on RAW; assistive detector on PROCESSED
     detections = detect_objects(image)
     scene = classify_scene(image)
-    description = generate_description(detections, scene)
+    assistive = detect_assistive(processed)
+    description = generate_description(detections, scene, assistive)
 
     result = {
         "description": description,
         "detections": detections,
+        "assistive": assistive,
         "scene": scene,
         "stages": stages_b64,
         "features": features,
