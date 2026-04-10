@@ -1,1 +1,8 @@
 commands.txt
+__pycache__/
+*.pyc
+*.pyo
+.DS_Store
+._*
+*.pt
+debug_captures/
