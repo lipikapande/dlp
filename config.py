@@ -3,10 +3,10 @@ from dataclasses import dataclass
 @dataclass
 class Config:
     # Quality gate thresholds
-    BLUR_THRESHOLD: float = 70.0       # Laplacian variance — below = too blurry
-    BRIGHTNESS_MIN: float = 60.0       # Mean pixel value (0-255)
-    BRIGHTNESS_MAX: float = 235.0
-    SNR_THRESHOLD: float = 8.0         # dB
+    BLUR_THRESHOLD: float = 30.0       # Laplacian variance — below = too blurry
+    BRIGHTNESS_MIN: float = 40.0       # Mean pixel value (0-255)
+    BRIGHTNESS_MAX: float = 240.0
+    SNR_THRESHOLD: float = -30.0       # dB — mean/std SNR goes negative for contrasty scenes; -30 passes all realistic images
 
     # DIP stages to enable (toggle for power profiling)
     ENABLE_FREQUENCY_FILTER: bool = True  # Expensive on Pi

@@ -62,7 +62,7 @@ def assess_quality(image: np.ndarray) -> QualityReport:
         rejection = f"Overexposed (brightness={brightness:.1f})"
     elif snr < CONFIG.SNR_THRESHOLD:
         rejection = f"High noise (SNR={snr:.1f}dB)"
-    elif edge_density < 0.05:
+    elif edge_density < 0.01:
         rejection = f"Insufficient detail (edge_density={edge_density:.3f})"
 
     return QualityReport(
