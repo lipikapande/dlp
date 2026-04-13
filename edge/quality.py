@@ -25,12 +25,15 @@ def compute_brightness(gray: np.ndarray) -> float:
 
 
 def compute_snr(gray: np.ndarray) -> float:
-    """Signal-to-noise ratio in dB. Uses mean/std estimate."""
-    mean = gray.mean()
-    std = gray.std()
-    if std < 1e-6:
-        return 0.0
-    return float(20 * np.log10(mean / std))
+    """Estimate noise using local variance in flat regions."""
+    # Apply a blur and compare to original — noisy images have high difference
+    blurred = cv2.GaussianBlur(gray, (5, 5), 0)
+    noise = np.abs(gray.astype(np.float32) - blurred.astype(np.float32))
+    noise_std = noise.std()
+    signal_std = gray.astype(np.float32).std()
+    if noise_std < 1e-6:
+        return 60.0  # very clean
+    return float(20 * np.log10(signal_std / noise_std))
 
 
 def compute_edge_density(gray: np.ndarray) -> float:

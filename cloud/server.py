@@ -6,13 +6,11 @@ import asyncio
 import threading
 import json
 import base64
-from cloud.detector import detect_objects
+from cloud.detector import detect_objects, detect_with_clip
 from cloud.classifier import classify_scene
 from cloud.nlg import generate_description
 from cloud.assistive_detector import detect_assistive
 from fastapi import UploadFile, File
-import cv2
-import numpy as np
 from edge.pipeline import run_pipeline
 from edge.quality import assess_quality
 from edge.capture import capture_snapshot
@@ -23,9 +21,25 @@ app = FastAPI()
 _latest: dict = {}
 _subscribers: list[asyncio.Queue] = []
 
+BEFORE_EDGE_STAGES = [
+    "07_wiener", "06_sharpen", "05_butterworth_hp",
+    "05_butterworth_lp", "04_denoise", "03_gamma", "02_clahe"
+]
+
 def broadcast(data: dict):
     for q in _subscribers:
         q.put_nowait(data)
+
+def get_best_fallback_image(stages_b64: dict):
+    for key in BEFORE_EDGE_STAGES:
+        if key in stages_b64:
+            print(f"[fallback] Using stage: {key}")
+            proc_bytes = base64.b64decode(stages_b64[key])
+            proc_arr = np.frombuffer(proc_bytes, np.uint8)
+            img = cv2.imdecode(proc_arr, cv2.IMREAD_COLOR)
+            if img is not None:
+                return img
+    return None
 
 @app.post("/infer")
 async def infer(request: Request):
@@ -35,29 +49,33 @@ async def infer(request: Request):
 
     payload = json.loads(body)
 
-    # Decode the final processed image
     image_bytes = base64.b64decode(payload["image"])
     nparr = np.frombuffer(image_bytes, np.uint8)
     image = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
     if image is None:
         raise HTTPException(status_code=400, detail="Cannot decode image")
 
-    # Stages already processed on edge — just use them
     stages_b64 = payload.get("stages", {})
     quality_data = payload.get("quality", {})
 
-    # Detect/classify on the image sent from edge.
-    # NOTE: edge/transport.py sends the processed image here.
-    # For best results, edge should send the raw image for detection
-    # and processed stages for display only (future improvement).
     detections = detect_objects(image)
     scene = classify_scene(image)
-    description = generate_description(detections, scene)
+
+    assistive = []
+    if not detections:
+        fallback_img = get_best_fallback_image(stages_b64)
+        if fallback_img is not None:
+            assistive = detect_with_clip(fallback_img)
+        else:
+            assistive = detect_with_clip(image)
+
+    description = generate_description(detections, scene, assistive)
     threading.Thread(target=speak, args=(description,), daemon=True).start()
 
     result = {
         "description": description,
         "detections": detections,
+        "assistive": assistive,
         "scene": scene,
         "stages": stages_b64,
         "quality": quality_data,
@@ -70,6 +88,7 @@ async def infer(request: Request):
     return JSONResponse({
         "description": description,
         "detections": detections,
+        "assistive": assistive,
         "scene": scene,
     })
 
@@ -102,34 +121,36 @@ async def sse(request: Request):
 async def ui():
     with open("cloud/ui.html", "r", encoding="utf-8") as f:
         return f.read()
-    
+
 @app.post("/upload")
 async def upload(file: UploadFile = File(...)):
     contents = await file.read()
-    
+
     npimg = np.frombuffer(contents, np.uint8)
     image = cv2.imdecode(npimg, cv2.IMREAD_COLOR)
 
     if image is None:
         raise HTTPException(status_code=400, detail="Invalid image")
 
-    # Run pipeline for visual stages + Module 6 features
     processed, stages, features = run_pipeline(image)
-
-    # Quality assessed on raw image
     report = assess_quality(image)
 
-    # Encode stages
     stages_b64 = {}
     for k, img in stages.items():
         _, b = cv2.imencode(".jpg", img)
         stages_b64[k] = base64.b64encode(b).decode()
 
-    # YOLO on RAW — trained on natural images; filters shift distribution
     detections = detect_objects(image)
     scene = classify_scene(image)
-    # Assistive detector on PROCESSED — preprocessing feeds into this layer
-    assistive = detect_assistive(processed)
+
+    assistive = []
+    if not detections:
+        fallback_img = get_best_fallback_image(stages_b64)
+        if fallback_img is not None:
+            assistive = detect_with_clip(fallback_img)
+        else:
+            assistive = detect_with_clip(image)
+
     description = generate_description(detections, scene, assistive)
     threading.Thread(target=speak, args=(description,), daemon=True).start()
 
@@ -162,10 +183,7 @@ async def trigger():
     if image is None:
         raise HTTPException(status_code=500, detail="Camera error")
 
-    # Run pipeline for visual stages + Module 6 features
     processed, stages, features = run_pipeline(image)
-
-    # Quality assessed on raw image
     report = assess_quality(image)
 
     stages_b64 = {}
@@ -173,11 +191,19 @@ async def trigger():
         _, b = cv2.imencode(".jpg", img)
         stages_b64[k] = base64.b64encode(b).decode()
 
-    # YOLO on RAW; assistive detector on PROCESSED
     detections = detect_objects(image)
     scene = classify_scene(image)
-    assistive = detect_assistive(processed)
+
+    assistive = []
+    if not detections:
+        fallback_img = get_best_fallback_image(stages_b64)
+        if fallback_img is not None:
+            assistive = detect_with_clip(fallback_img)
+        else:
+            assistive = detect_with_clip(image)
+
     description = generate_description(detections, scene, assistive)
+    threading.Thread(target=speak, args=(description,), daemon=True).start()
 
     result = {
         "description": description,
